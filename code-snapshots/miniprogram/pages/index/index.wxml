@@ -1,0 +1,104 @@
+<view class="page">
+  <view class="topbar">
+    <text class="brand">鲜达订菜</text>
+    <view class="top-actions">
+      <text wx:if="{{groupEnabled}}" class="link" bindtap="goGroups">拼单</text>
+      <text class="link" bindtap="goAddress">地址</text>
+      <text class="link" bindtap="goOrders">我的订单</text>
+      <text class="link" bindtap="logout">退出</text>
+    </view>
+  </view>
+
+  <view class="audit-banner" wx:if="{{auditPending}}">
+    采购商资质待商户审核，审核通过后可享受采购价并下单
+  </view>
+
+  <view wx:if="{{groupEnabled}}" class="group-notice" wx:for="{{groupNotices}}" wx:key="key" bindtap="goGroups" hover-class="group-notice-hover">
+    <view class="notice-mark">拼</view>
+    <view class="notice-main">
+      <view class="notice-title">{{item.title}}</view>
+      <view class="notice-desc">{{item.desc}}</view>
+    </view>
+    <view class="notice-action">{{item.action}} ›</view>
+  </view>
+  <view class="notice-more" wx:if="{{groupEnabled && groupNoticeMore}}" bindtap="goGroups">{{groupNoticeMore}}</view>
+
+  <view class="section" wx:for="{{categories}}" wx:key="id" wx:for-item="cat">
+    <view class="section-title">{{cat.name}}</view>
+    <view class="goods-grid">
+      <view class="good-card {{lastAddedId === g.id ? 'bump' : ''}}" wx:for="{{cat.goods}}" wx:key="id" wx:for-item="g" data-id="{{g.id}}" bindtap="addToCart">
+        <image wx:if="{{g.imgUrl}}" class="g-img" src="{{g.imgUrl}}" mode="aspectFill" lazy-load
+               data-id="{{g.id}}" binderror="onGoodsImageError" />
+        <view class="g-name">{{g.name}}</view>
+        <view class="g-unit">{{cat.name}} · {{g.unit}}</view>
+        <view class="g-bottom">
+          <text class="price">¥{{g.salePrice}}/{{g.unit}}</text>
+          <view class="stepper" catchtap="noop">
+            <text class="step" data-id="{{g.id}}" data-delta="-1" catchtap="changeQty">−</text>
+            <text class="cnt">{{g.qty}}</text>
+            <text class="step" data-id="{{g.id}}" data-delta="1" catchtap="changeQty">＋</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!categories.length}}">暂无菜品</view>
+
+  <view class="footer" wx:if="{{cartCount > 0}}">
+    <view class="cart-info">共 {{cartCount}} 种 · 合计 <text class="amount">¥{{cartAmount}}</text></view>
+    <button class="checkout" bindtap="openCheckout">去结算</button>
+  </view>
+</view>
+
+<view wx:if="{{showCheckout}}" class="mask" bindtap="closeCheckout"></view>
+<view wx:if="{{showCheckout}}" class="sheet">
+  <view class="sheet-title">确认订单</view>
+  <view class="sheet-total">合计 <text class="amount">¥{{cartAmount}}</text></view>
+  <view wx:if="{{freightTip}}" class="freight-tip">{{freightTip}}</view>
+  <view class="checkout-list">
+    <view class="co-item" wx:for="{{checkoutItems}}" wx:key="id">
+      <view class="co-main">
+        <view class="co-name">{{item.name}}</view>
+        <view class="co-price">¥{{item.price}}/{{item.unit}}</view>
+      </view>
+      <view class="stepper">
+        <text class="step" data-id="{{item.id}}" data-delta="-1" bindtap="changeQty">−</text>
+        <text class="cnt">{{item.qty}}</text>
+        <text class="step" data-id="{{item.id}}" data-delta="1" bindtap="changeQty">＋</text>
+      </view>
+    </view>
+  </view>
+  <view class="sheet-addr-head">
+    <text class="addr-head-title">收货信息</text>
+    <picker wx:if="{{addressList.length}}" class="addr-picker" mode="selector" range="{{addressList}}" range-key="label" value="{{selectedAddrIndex}}" bindchange="onAddressChange">
+      <view class="picker-box">{{selectedAddrLabel || '选择地址'}} ▾</view>
+    </picker>
+    <text wx:else class="picker-box empty-picker" bindtap="goAddress">添加地址 ▾</text>
+    <text class="use-default" bindtap="useDefaultAddress">使用默认地址</text>
+  </view>
+  <view class="field">
+    <text class="label">收货人</text>
+    <input data-field="receiverName" bindinput="input" value="{{receiverName}}" placeholder="请输入收货人" />
+  </view>
+  <view class="field">
+    <text class="label">收货电话</text>
+    <input type="number" maxlength="11" data-field="receiverPhone" bindinput="input" value="{{receiverPhone}}" placeholder="请输入手机号" />
+  </view>
+  <view class="field">
+    <text class="label">收货地址</text>
+    <input data-field="receiverAddress" bindinput="input" value="{{receiverAddress}}" placeholder="请输入详细地址" />
+  </view>
+  <button class="btn-primary" loading="{{submitting}}" bindtap="submit">提交订单</button>
+  <button class="btn-ghost cancel" bindtap="closeCheckout">继续选购</button>
+</view>
+
+<view wx:if="{{showPay}}" class="mask"></view>
+<view wx:if="{{showPay}}" class="pay-sheet">
+  <view class="pay-title">扫码支付</view>
+  <view class="pay-amount">¥{{payAmount}}</view>
+  <image class="pay-qr" src="{{payQrUrl}}" mode="widthFix" show-menu-by-longpress />
+  <view class="pay-hint">请使用微信扫码支付，完成后再点击下方按钮</view>
+  <button class="btn-primary" loading="{{paying}}" bindtap="confirmPay">确定支付</button>
+  <button class="btn-ghost cancel" bindtap="deferPay">稍后支付</button>
+</view>

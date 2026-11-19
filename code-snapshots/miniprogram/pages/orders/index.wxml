@@ -1,0 +1,75 @@
+<view class="page">
+  <view class="topbar">
+    <text class="link" bindtap="goMall">继续选购</text>
+    <text class="brand">我的订单</text>
+    <text class="link" bindtap="goMall">首页</text>
+  </view>
+
+  <view class="orders-tools">
+    <text wx:if="{{penalty}}" class="penalty-chip">优惠暂停至 {{penalty.endText}}</text>
+    <text class="tool-link" bindtap="goStatement">月度对账单</text>
+  </view>
+
+  <view class="order-card {{item.status === '2' ? 'cancelled' : ''}}" wx:for="{{orders}}" wx:key="id">
+    <view class="o-head">
+      <text class="sale-no">{{item.saleNo}}</text>
+      <text class="time">{{item.timeText}}</text>
+    </view>
+    <view class="o-items" wx:if="{{item.items.length}}">
+      <view class="o-item" wx:for="{{item.items}}" wx:key="goodsId" wx:for-item="g">
+        <text class="oi-name">{{g.goodsName}}</text>
+        <text class="oi-qty">×{{g.qty}}</text>
+        <text class="oi-amount">¥{{g.amount}}</text>
+      </view>
+    </view>
+    <view class="o-row">
+      <text class="badge {{item.payStatus === '2' ? 'ok' : 'warn'}}">{{item.payText}}</text>
+      <text class="badge {{item.deliveryStatus === '3' || item.deliveryStatus === '5' ? 'ok' : 'warn'}}">{{item.dlvText}}</text>
+      <text class="badge {{item.status === '2' ? 'muted' : 'ok'}}">{{item.statusText}}</text>
+      <text class="amount">合计 ¥{{item.payable}}</text>
+    </view>
+    <view wx:if="{{item.status === '2'}}" class="cancel-note">
+      <text>退单原因：{{item.cancelRemark}}</text>
+      <text wx:if="{{item.refundStatus === '1'}}">模拟退款 ¥{{item.refundAmount}}</text>
+    </view>
+    <view class="o-foot" wx:if="{{item.status === '0' && (item.canSign || item.payStatus !== '2' || item.canCancel)}}">
+      <button wx:if="{{item.canSign}}" class="sign-btn" data-id="{{item.id}}" bindtap="confirmSign">确认签收</button>
+      <button wx:elif="{{item.payStatus !== '2'}}" class="sign-btn" data-id="{{item.id}}" data-amount="{{item.payable}}" bindtap="goPay">去支付</button>
+      <button wx:if="{{item.canCancel}}" class="cancel-order-btn" data-id="{{item.id}}" bindtap="openCancel">取消订单</button>
+      <button wx:if="{{item.deliveryStatus === '5'}}" class="claim-btn" data-id="{{item.id}}" data-sale-no="{{item.saleNo}}" bindtap="goClaim">损耗报备</button>
+    </view>
+    <view class="o-foot" wx:elif="{{item.status === '0' && item.deliveryStatus === '5'}}">
+      <button class="claim-btn" data-id="{{item.id}}" data-sale-no="{{item.saleNo}}" bindtap="goClaim">损耗报备</button>
+    </view>
+    <view class="o-foot o-extra">
+      <button wx:if="{{item.status === '0'}}" class="mini-btn" data-id="{{item.id}}" bindtap="reorder">再来一单</button>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!loading && !orders.length}}">暂无订单</view>
+</view>
+
+<view wx:if="{{showCancel}}" class="mask" bindtap="closeCancel"></view>
+<view wx:if="{{showCancel}}" class="cancel-sheet">
+  <view class="pay-title">取消订单</view>
+  <view class="cancel-tip">仅未开始分拣可取消；已支付订单会记录模拟退款。</view>
+  <radio-group class="reason-list" bindchange="chooseCancelReason">
+    <label class="reason-item"><radio value="NOT_NEEDED" checked="{{cancelReasonCode === 'NOT_NEEDED'}}" color="#238a50"/>暂时不需要了</label>
+    <label class="reason-item"><radio value="TEMPORARY" checked="{{cancelReasonCode === 'TEMPORARY'}}" color="#238a50"/>临时有事</label>
+    <label class="reason-item"><radio value="OTHER" checked="{{cancelReasonCode === 'OTHER'}}" color="#238a50"/>其他原因</label>
+  </radio-group>
+  <textarea class="cancel-textarea" maxlength="200" value="{{cancelRemark}}" bindinput="inputCancelRemark"
+            placeholder="{{cancelReasonCode === 'OTHER' ? '请填写至少 5 个字的原因' : '请补充退单备注'}}" />
+  <button class="btn-primary" loading="{{cancelling}}" bindtap="submitCancel">确认取消</button>
+  <button class="btn-ghost cancel" bindtap="closeCancel">暂不取消</button>
+</view>
+
+<view wx:if="{{showPay}}" class="mask"></view>
+<view wx:if="{{showPay}}" class="pay-sheet">
+  <view class="pay-title">扫码支付</view>
+  <view class="pay-amount">¥{{payAmount}}</view>
+  <image class="pay-qr" src="{{payQrUrl}}" mode="widthFix" show-menu-by-longpress />
+  <view class="pay-hint">请使用微信扫码支付，完成后再点击下方按钮</view>
+  <button class="btn-primary" loading="{{paying}}" bindtap="confirmPay">确定支付</button>
+  <button class="btn-ghost cancel" bindtap="closePay">关闭</button>
+</view>
