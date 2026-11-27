@@ -24,22 +24,27 @@
     </view>
     <view class="o-row">
       <text class="badge {{item.payStatus === '2' ? 'ok' : 'warn'}}">{{item.payText}}</text>
-      <text class="badge {{item.deliveryStatus === '3' || item.deliveryStatus === '5' ? 'ok' : 'warn'}}">{{item.dlvText}}</text>
+      <text class="badge {{item.deliveryStatus === '3' || item.deliveryStatus === '5' ? 'ok' : 'warn'}}"
+            aria-label="{{item.deliveryStatus === '5' && item.deliverySignType === 'AUTO' ? '已自动签收' : item.dlvText}}">{{item.dlvText}}</text>
       <text class="badge {{item.status === '2' ? 'muted' : 'ok'}}">{{item.statusText}}</text>
       <text class="amount">合计 ¥{{item.payable}}</text>
+    </view>
+    <view class="claim-note" wx:if="{{item.claimStatusText || (item.canClaim && item.claimDeadlineText)}}">
+      <text wx:if="{{item.claimStatusText}}">{{item.claimStatusText}}</text>
+      <text wx:if="{{item.canClaim && item.claimDeadlineText}}" class="claim-deadline">请在 {{item.claimDeadlineText}} 前提交</text>
     </view>
     <view wx:if="{{item.status === '2'}}" class="cancel-note">
       <text>退单原因：{{item.cancelRemark}}</text>
       <text wx:if="{{item.refundStatus === '1'}}">模拟退款 ¥{{item.refundAmount}}</text>
     </view>
-    <view class="o-foot" wx:if="{{item.status === '0' && (item.canSign || item.payStatus !== '2' || item.canCancel)}}">
+    <view class="o-foot" wx:if="{{item.status === '0' && (item.canSign || item.payStatus !== '2' || item.canCancel || item.canClaim)}}">
       <button wx:if="{{item.canSign}}" class="sign-btn" data-id="{{item.id}}" bindtap="confirmSign">确认签收</button>
       <button wx:elif="{{item.payStatus !== '2'}}" class="sign-btn" data-id="{{item.id}}" data-amount="{{item.payable}}" bindtap="goPay">去支付</button>
       <button wx:if="{{item.canCancel}}" class="cancel-order-btn" data-id="{{item.id}}" bindtap="openCancel">取消订单</button>
-      <button wx:if="{{item.deliveryStatus === '5'}}" class="claim-btn" data-id="{{item.id}}" data-sale-no="{{item.saleNo}}" bindtap="goClaim">损耗报备</button>
-    </view>
-    <view class="o-foot" wx:elif="{{item.status === '0' && item.deliveryStatus === '5'}}">
-      <button class="claim-btn" data-id="{{item.id}}" data-sale-no="{{item.saleNo}}" bindtap="goClaim">损耗报备</button>
+      <button wx:if="{{item.canClaim}}" class="claim-btn"
+              data-id="{{item.id}}" data-sale-no="{{item.saleNo}}"
+              data-deadline="{{item.claimDeadlineText}}" data-status="{{item.claimStatusText}}"
+              bindtap="goClaim">损耗报备</button>
     </view>
     <view class="o-foot o-extra">
       <button wx:if="{{item.status === '0'}}" class="mini-btn" data-id="{{item.id}}" bindtap="reorder">再来一单</button>
@@ -66,10 +71,9 @@
 
 <view wx:if="{{showPay}}" class="mask"></view>
 <view wx:if="{{showPay}}" class="pay-sheet">
-  <view class="pay-title">扫码支付</view>
+  <view class="pay-title">确认支付</view>
   <view class="pay-amount">¥{{payAmount}}</view>
-  <image class="pay-qr" src="{{payQrUrl}}" mode="widthFix" show-menu-by-longpress />
-  <view class="pay-hint">请使用微信扫码支付，完成后再点击下方按钮</view>
+  <view class="pay-hint">点击下方按钮完成模拟支付</view>
   <button class="btn-primary" loading="{{paying}}" bindtap="confirmPay">确定支付</button>
   <button class="btn-ghost cancel" bindtap="closePay">关闭</button>
 </view>

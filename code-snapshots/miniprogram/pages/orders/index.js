@@ -1,17 +1,16 @@
 const app = getApp();
 const request = require('../../utils/request');
-const assets = require('../../utils/assets');
 
 const DLV = { 0: '待分拣', 1: '分拣中', 2: '已分拣', 3: '已配送', 5: '已签收' };
 const PAY = { 0: '未付款', 1: '部分付款', 2: '已付清' };
 const ORDER_STATUS = { 0: '正常', 1: '已退货', 2: '已取消' };
+const ORDER_POLL_INTERVAL = 8000;
 
 Page({
   data: {
     orders: [],
     loading: false,
     showPay: false,
-    payQrUrl: assets.url('mall.payQr'),
     payOrderId: '',
     payAmount: '0.00',
     paying: false,
@@ -25,50 +24,90 @@ Page({
 
   onShow() {
     if (!app.token()) {
+      this.stopStatusPolling();
       wx.reLaunch({ url: '/pages/login/index' });
       return;
     }
     this.load();
-    this.loadAssets();
+    this.startStatusPolling();
   },
 
-  async loadAssets() {
+  onHide() {
+    this.stopStatusPolling();
+  },
+
+  onUnload() {
+    this.stopStatusPolling();
+  },
+
+  async onPullDownRefresh() {
     try {
-      const map = await assets.refresh();
-      this.setData({ payQrUrl: map['mall.payQr'] || assets.url('mall.payQr') });
-    } catch (e) {
-      this.setData({ payQrUrl: assets.url('mall.payQr') });
+      await this.load();
+    } finally {
+      wx.stopPullDownRefresh();
     }
   },
 
-  async load() {
-    this.setData({ loading: true });
-    try {
-      const page = await request.get('/api/mall/orders?pageNum=1&pageSize=20');
-      const orders = (page.records || []).map((o) => Object.assign({}, o, {
-        dlvText: o.status === '2' ? '已取消' : (DLV[o.deliveryStatus] || '待分拣'),
-        payText: PAY[o.payStatus] || '-',
-        statusText: ORDER_STATUS[o.status] || '-',
-        canSign: o.deliveryStatus === '3',
-        canCancel: o.status === '0' && (!o.deliveryStatus || o.deliveryStatus === '0'),
-        timeText: (o.saleDate || '').replace('T', ' ').substring(0, 16)
-      }));
-      let penalty = null;
+  startStatusPolling() {
+    this.stopStatusPolling();
+    this._statusPollTimer = setInterval(() => {
+      this.load({ silent: true });
+    }, ORDER_POLL_INTERVAL);
+  },
+
+  stopStatusPolling() {
+    if (this._statusPollTimer) {
+      clearInterval(this._statusPollTimer);
+      this._statusPollTimer = null;
+    }
+  },
+
+  async load(options) {
+    const silent = !!(options && options.silent);
+    if (this._loadingRequest) return this._loadingRequest;
+    this._loadingRequest = (async () => {
+      if (!silent) this.setData({ loading: true });
       try {
-        const status = await request.get('/api/mall/groups/status');
-        if (status && status.penalty) {
-          penalty = Object.assign({}, status.penalty, {
-            endText: (status.penalty.endTime || '').replace('T', ' ').substring(5, 16)
-          });
+        const page = await request.get('/api/mall/orders?pageNum=1&pageSize=20', { silent });
+        const orders = (page.records || []).map((o) => Object.assign({}, o, {
+          dlvText: o.status === '2' ? '已取消'
+            : (o.deliveryStatus === '5' && o.deliverySignType === 'AUTO'
+              ? '已自动签收' : (DLV[o.deliveryStatus] || '待分拣')),
+          payText: PAY[o.payStatus] || '-',
+          statusText: ORDER_STATUS[o.status] || '-',
+          canSign: o.deliveryStatus === '3',
+          canClaim: !!o.claimAllowed,
+          canCancel: o.status === '0' && (!o.deliveryStatus || o.deliveryStatus === '0'),
+          timeText: (o.saleDate || '').replace('T', ' ').substring(0, 16),
+          claimDeadlineText: (o.claimDeadline || '').replace('T', ' ').substring(0, 16),
+          claimStatusText: o.claimStatusText || ''
+        }));
+        let penalty = null;
+        try {
+          const status = await request.get('/api/mall/groups/status', { silent });
+          if (status && status.penalty) {
+            penalty = Object.assign({}, status.penalty, {
+              endText: (status.penalty.endTime || '').replace('T', ' ').substring(5, 16)
+            });
+          }
+        } catch (e) {
+          // 拼单关闭或配置接口异常不阻断订单列表
+        }
+        const signature = JSON.stringify({ orders, penalty });
+        if (!silent || signature !== this._orderSignature) {
+          this._orderSignature = signature;
+          this.setData({ orders, penalty });
         }
       } catch (e) {
-        // 拼单关闭或配置接口异常不阻断订单列表
+        // 首次加载由 request 提示；静默轮询不重复打断用户
+      } finally {
+        if (!silent) this.setData({ loading: false });
       }
-      this.setData({ orders, penalty });
-    } catch (e) {
-      // request 已提示
+    })();
+    try {
+      return await this._loadingRequest;
     } finally {
-      this.setData({ loading: false });
+      this._loadingRequest = null;
     }
   },
 
@@ -95,9 +134,13 @@ Page({
   },
 
   goClaim(e) {
-    const { id, saleNo } = e.currentTarget.dataset;
+    const { id, saleNo, deadline, status } = e.currentTarget.dataset;
     wx.navigateTo({
-      url: '/pages/claim/index?orderId=' + id + '&saleNo=' + encodeURIComponent(saleNo || '')
+      url: '/pages/claim/index?orderId=' + id +
+        '&saleNo=' + encodeURIComponent(saleNo || '') +
+        '&claimAllowed=1' +
+        '&deadline=' + encodeURIComponent(deadline || '') +
+        '&status=' + encodeURIComponent(status || '')
     });
   },
 

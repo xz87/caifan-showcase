@@ -22,11 +22,13 @@
 - 后端按 `common / system / business / admin` 拆分模块，用户 App API 与商户后台 Web 隔离鉴权。
 - 微信小程序和 Android App 共用 `/api/mall/**` Bearer Token API，Redis 保存登录令牌并限制同账号并发登录。
 - 实现采购、入库、库存批次、FIFO 成本、销售、取消退款、分拣配送、客户签收和月度对账。
+- 主动签收后默认 14 小时内可报损，老板可配置 1 至 72 小时；配送满 12 小时自动签收，自动签收订单禁止报损。
 - 拼单支持多菜品、数量或重量、促销价、运费规则、成员退出、失效时间和历史价格快照。
 - 订单取消会回补库存批次、释放赊账额度并记录退款原因。
 - 使用 Apache POI 导出顾客对账单和销售备货 Excel。
 - 菜品图自动生成 `480×480` JPEG 缩略图，实测图片总量降低约 `93.3%`，并支持 Nginx 长期缓存。
-- 后端维护 28 个自动化测试，覆盖财务、拼单、订单取消、图片缩略图和 Excel 文案。
+- 小程序和 Android 订单页支持 8 秒静默轮询、页面隐藏停止、下拉刷新和状态变化去重。
+- 后端维护 47 个单元测试与 42 个集成测试，覆盖财务、拼单、取消退款、签收报损、权限、图片和 Excel。
 
 ## 系统架构
 
@@ -54,6 +56,7 @@ flowchart LR
 | 菜品与库存 | 菜品、品类、供应商、图片、库存汇总、批次与盘点 |
 | 采购与销售 | 采购入库、FIFO 库存扣减、应收应付、取消与退款 |
 | 分拣配送 | 待分拣、分拣中、已分拣、已配送、已签收 |
+| 签收报损 | 主动签收、12 小时自动签收、1 至 72 小时报损窗口、商户审核与补发 |
 | 拼单促销 | 多菜品拼单、成员加入/退出、活动价、运费和每日配置 |
 | 顾客移动端 | 选购、购物车、地址、支付、订单、签收、损耗报备 |
 | 报表 | 日结、月报、顾客月度对账、Excel 导出 |
@@ -69,10 +72,18 @@ flowchart LR
 | 订单取消与库存回补 | [OrderCancellationService.java](code-snapshots/backend/service/OrderCancellationService.java) |
 | 菜品缩略图生成 | [GoodsThumbnailService.java](code-snapshots/backend/service/GoodsThumbnailService.java) |
 | Excel 导出 | [StatementExcelWriter.java](code-snapshots/backend/support/StatementExcelWriter.java) |
+| 自动签收定时任务 | [DeliveryAutoSignService.java](code-snapshots/backend/service/DeliveryAutoSignService.java) |
+| 签收与分拣状态 | [DlvOrderService.java](code-snapshots/backend/service/DlvOrderService.java) |
+| 报损资格与配置 | [LossClaimService.java](code-snapshots/backend/service/LossClaimService.java) |
+| 老板报损配置接口 | [ClaimController.java](code-snapshots/backend/controller/ClaimController.java) |
 | 接口安全测试 | [UserChannelAccessTest.java](code-snapshots/backend/test/UserChannelAccessTest.java) |
 | 微信小程序选购与购物车 | [miniprogram/pages/index](code-snapshots/miniprogram/pages/index) |
 | Android 选购页 | [android/pages/index/index.vue](code-snapshots/android/pages/index/index.vue) |
 | Android 拼单页 | [android/pages/groups/index.vue](code-snapshots/android/pages/groups/index.vue) |
+| 小程序报损页 | [miniprogram/pages/claim](code-snapshots/miniprogram/pages/claim) |
+| Android 报损页 | [android/pages/claim/index.vue](code-snapshots/android/pages/claim/index.vue) |
+| 数据库 DDL | [schema.sql](code-snapshots/database/schema.sql) |
+| 报损与自动签收迁移 | [2026-11-26 migration](code-snapshots/database/migrations/2026-11-26_manual_claim_auto_sign.sql) |
 
 详细阅读顺序见 [代码导览](docs/code-tour.md)。
 

@@ -1,6 +1,24 @@
 const app = getApp();
 
-function request(method, path, data) {
+function showFailure(title, message) {
+  wx.showToast({ title: message || title, icon: 'none' });
+}
+
+function handleHttpStatus(statusCode, body) {
+  if (statusCode === 404) {
+    return '接口或资源不存在';
+  }
+  if (statusCode === 503) {
+    return '服务暂时不可用，请稍后重试';
+  }
+  if (statusCode >= 500) {
+    return '服务器异常，请稍后重试';
+  }
+  return body.msg || ('请求失败（HTTP ' + statusCode + '）');
+}
+
+function request(method, path, data, options) {
+  const requestOptions = options || {};
   return new Promise((resolve, reject) => {
     const token = app.token();
     wx.request({
@@ -16,15 +34,19 @@ function request(method, path, data) {
           return;
         }
         const body = res.data || {};
-        if (body.code !== 200) {
-          wx.showToast({ title: body.msg || '操作失败', icon: 'none' });
+        if (res.statusCode < 200 || res.statusCode >= 300 || body.code !== 200) {
+          if (!requestOptions.silent) {
+            showFailure('请求失败', handleHttpStatus(res.statusCode, body));
+          }
           reject(body);
           return;
         }
         resolve(body.data);
       },
       fail(err) {
-        wx.showToast({ title: '网络异常，请检查后端地址', icon: 'none' });
+        if (!requestOptions.silent) {
+          showFailure('网络异常', '网络异常，请检查后端地址');
+        }
         reject(err);
       }
     });
@@ -32,8 +54,8 @@ function request(method, path, data) {
 }
 
 module.exports = {
-  get(path) {
-    return request('GET', path);
+  get(path, options) {
+    return request('GET', path, null, options);
   },
   post(path, data) {
     return request('POST', path, data);

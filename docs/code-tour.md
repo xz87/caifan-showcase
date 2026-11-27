@@ -23,22 +23,41 @@
 
 重点观察图片压缩、缓存路径规则和 Apache POI 表格输出。
 
-## 4. 微信小程序
+## 4. 签收与报损
+
+1. `backend/service/DeliveryAutoSignService.java`
+2. `backend/service/DlvOrderService.java`
+3. `backend/service/LossClaimService.java`
+4. `backend/controller/ClaimController.java`
+
+重点观察送达与签收来源、12 小时自动签收、报损资格判断、商户时限配置和补发闭环。
+
+## 5. 微信小程序
 
 1. `miniprogram/utils/request.js`
 2. `miniprogram/pages/index/index.js`
 3. `miniprogram/pages/index/index.wxml`
+4. `miniprogram/pages/orders/index.js`
+5. `miniprogram/pages/claim/index.js`
 
-重点观察 Bearer Token、购物车状态持久化、缩略图回退和订单提交。
+重点观察 Bearer Token、购物车状态持久化、缩略图回退、8 秒静默轮询、下拉刷新和报损提交。
 
-## 5. Android
+## 6. Android
 
 1. `android/utils/request.js`
 2. `android/pages/index/index.vue`
 3. `android/pages/orders/index.vue`
-4. `android/pages/groups/index.vue`
+4. `android/pages/claim/index.vue`
+5. `android/pages/groups/index.vue`
 
-重点观察 uni-app API 封装、移动端页面结构、支付、签收、退单和拼单交互。
+重点观察 uni-app API 封装、订单状态轮询、页面生命周期清理、签收报损、退单和拼单交互。
+
+## 7. 数据库
+
+1. `database/schema.sql`
+2. `database/migrations/2026-11-26_manual_claim_auto_sign.sql`
+
+重点观察 31 张业务表、FIFO 批次、唯一生成列、报损时限表以及签收扫描索引。
 
 ## 说明
 

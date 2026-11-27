@@ -3,12 +3,29 @@ import { token, clearLogin } from './auth'
 
 let redirecting = false
 
-function fail(message, reject) {
-  uni.showToast({ title: message || '操作失败', icon: 'none' })
-  reject(new Error(message || 'request failed'))
+function fail(message, reject, code, silent = false) {
+  if (!silent) {
+    uni.showToast({ title: message || '操作失败', icon: 'none' })
+  }
+  const error = new Error(message || 'request failed')
+  error.code = code
+  reject(error)
 }
 
-export function request(method, path, data) {
+function statusMessage(statusCode, body) {
+  if (statusCode === 404) {
+    return '接口或资源不存在'
+  }
+  if (statusCode === 503) {
+    return '服务暂时不可用，请稍后重试'
+  }
+  if (statusCode >= 500) {
+    return '服务器异常，请稍后重试'
+  }
+  return body.msg || ('请求失败（HTTP ' + statusCode + '）')
+}
+
+export function request(method, path, data, options = {}) {
   return new Promise((resolve, reject) => {
     const currentToken = token()
     uni.request({
@@ -33,21 +50,21 @@ export function request(method, path, data) {
         }
         const body = res.data || {}
         if (res.statusCode < 200 || res.statusCode >= 300 || body.code !== 200) {
-          fail(body.msg || ('请求失败（HTTP ' + res.statusCode + '）'), reject)
+          fail(statusMessage(res.statusCode, body), reject, res.statusCode, options.silent)
           return
         }
         resolve(body.data)
       },
       fail() {
-        fail('网络异常，请检查服务器连接', reject)
+        fail('网络异常，请检查服务器连接', reject, undefined, options.silent)
       }
     })
   })
 }
 
 export const http = {
-  get(path) {
-    return request('GET', path)
+  get(path, options) {
+    return request('GET', path, undefined, options)
   },
   post(path, data) {
     return request('POST', path, data)
@@ -79,8 +96,8 @@ export function upload(path, filePath) {
           reject(body)
           return
         }
-        if (body.code !== 200) {
-          fail(body.msg || '上传失败', reject)
+        if (res.statusCode < 200 || res.statusCode >= 300 || body.code !== 200) {
+          fail(statusMessage(res.statusCode, body) || '上传失败', reject, res.statusCode)
           return
         }
         resolve(body.data)

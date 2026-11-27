@@ -37,12 +37,17 @@
           <view>退单原因：{{ order.cancelRemark || '-' }}</view>
           <view v-if="order.refundStatus === '1'">模拟退款：¥{{ money(order.refundAmount) }}</view>
         </view>
+        <view v-if="order.claimStatusText || (order.canClaim && order.claimDeadlineText)" class="claim-note">
+          <view v-if="order.claimStatusText">{{ order.claimStatusText }}</view>
+          <view v-if="order.canClaim && order.claimDeadlineText" class="claim-deadline">
+            请在 {{ order.claimDeadlineText }} 前提交
+          </view>
+        </view>
         <view class="order-actions">
           <button v-if="order.canSign" class="btn-primary btn-small" @tap="confirmSign(order)">确认签收</button>
           <button v-else-if="order.status === '0' && order.payStatus !== '2'"
                   class="btn-primary btn-small" @tap="openPay(order)">去支付</button>
-          <button v-if="order.status === '0' && order.deliveryStatus === '5'"
-                  class="btn-ghost btn-small" @tap="goClaim(order)">损耗报备</button>
+          <button v-if="order.canClaim" class="btn-ghost btn-small" @tap="goClaim(order)">损耗报备</button>
           <button v-if="order.canCancel" class="btn-ghost btn-small" @tap="openCancel(order)">取消订单</button>
           <button v-if="order.status === '0'" class="btn-ghost btn-small" @tap="reorder(order)">再来一单</button>
         </view>
@@ -104,6 +109,7 @@ import { money, quantity, dateTime } from '../../utils/format'
 const DLV = { '0': '待分拣', '1': '分拣中', '2': '已分拣', '3': '已配送', '4': '已取消', '5': '已签收' }
 const PAY = { '0': '未付款', '1': '部分付款', '2': '已付清' }
 const STATUS = { '0': '正常', '1': '已退货', '2': '已取消' }
+const ORDER_POLL_INTERVAL = 8000
 
 export default {
   data() {
@@ -127,36 +133,84 @@ export default {
     if (!requireLogin()) return
     this.load()
     this.loadAssets()
+    this.startStatusPolling()
+  },
+  onHide() {
+    this.stopStatusPolling()
+  },
+  onUnload() {
+    this.stopStatusPolling()
+  },
+  async onPullDownRefresh() {
+    try {
+      await this.load()
+    } finally {
+      uni.stopPullDownRefresh()
+    }
   },
   methods: {
     money,
     quantity,
+    startStatusPolling() {
+      this.stopStatusPolling()
+      this.statusPollTimer = setInterval(() => {
+        this.load({ silent: true })
+      }, ORDER_POLL_INTERVAL)
+    },
+    stopStatusPolling() {
+      if (this.statusPollTimer) {
+        clearInterval(this.statusPollTimer)
+        this.statusPollTimer = null
+      }
+    },
     async loadAssets() {
       const assets = await refreshAssets()
       if (assets['mall.payQr']) this.payQrUrl = assets['mall.payQr']
     },
-    async load() {
-      this.loading = true
+    async load(options = {}) {
+      const silent = !!options.silent
+      if (this.loadingRequest) return this.loadingRequest
+      this.loadingRequest = (async () => {
+        if (!silent) this.loading = true
+        try {
+          const page = await http.get('/api/mall/orders?pageNum=1&pageSize=30', { silent })
+          const orders = (page.records || []).map((order) => ({
+            ...order,
+            items: order.items || [],
+            statusText: STATUS[order.status] || '-',
+            payText: PAY[order.payStatus] || '-',
+            dlvText: order.status === '2'
+              ? '已取消'
+              : (order.deliveryStatus === '5' && order.deliverySignType === 'AUTO'
+                ? '已自动签收'
+                : (DLV[order.deliveryStatus] || '待分拣')),
+            canSign: order.status === '0' && order.deliveryStatus === '3',
+            canClaim: !!order.claimAllowed,
+            canCancel: order.status === '0' && (!order.deliveryStatus || order.deliveryStatus === '0'),
+            claimDeadlineText: order.claimDeadline ? dateTime(order.claimDeadline, true) : '',
+            claimStatusText: order.claimStatusText || '',
+            timeText: dateTime(order.saleDate, true)
+          }))
+          const status = await http.get('/api/mall/groups/status', { silent }).catch(() => null)
+          const penalty = status && status.penalty
+            ? { ...status.penalty, endText: dateTime(status.penalty.endTime, true) }
+            : null
+          const signature = JSON.stringify({ orders, penalty })
+          if (!silent || signature !== this.orderSignature) {
+            this.orderSignature = signature
+            this.orders = orders
+            this.penalty = penalty
+          }
+        } catch (error) {
+          // 首次加载由 request 提示；静默轮询不重复打断用户
+        } finally {
+          if (!silent) this.loading = false
+        }
+      })()
       try {
-        const page = await http.get('/api/mall/orders?pageNum=1&pageSize=30')
-        this.orders = (page.records || []).map((order) => ({
-          ...order,
-          items: order.items || [],
-          statusText: STATUS[order.status] || '-',
-          payText: PAY[order.payStatus] || '-',
-          dlvText: order.status === '2' ? '已取消' : (DLV[order.deliveryStatus] || '待分拣'),
-          canSign: order.status === '0' && order.deliveryStatus === '3',
-          canCancel: order.status === '0' && (!order.deliveryStatus || order.deliveryStatus === '0'),
-          timeText: dateTime(order.saleDate, true)
-        }))
-        const status = await http.get('/api/mall/groups/status').catch(() => null)
-        this.penalty = status && status.penalty
-          ? { ...status.penalty, endText: dateTime(status.penalty.endTime, true) }
-          : null
-      } catch (error) {
-        // request 已提示
+        return await this.loadingRequest
       } finally {
-        this.loading = false
+        this.loadingRequest = null
       }
     },
     confirmSign(order) {
@@ -199,7 +253,11 @@ export default {
     },
     goClaim(order) {
       uni.navigateTo({
-        url: '/pages/claim/index?orderId=' + order.id + '&saleNo=' + encodeURIComponent(order.saleNo)
+        url: '/pages/claim/index?orderId=' + order.id +
+          '&saleNo=' + encodeURIComponent(order.saleNo || '') +
+          '&claimAllowed=1' +
+          '&deadline=' + encodeURIComponent(order.claimDeadlineText || '') +
+          '&status=' + encodeURIComponent(order.claimStatusText || '')
       })
     },
     goStatement() {
@@ -361,6 +419,20 @@ export default {
   color: #727b75;
   font-size: 21rpx;
   line-height: 1.6;
+}
+
+.claim-note {
+  margin-top: 14rpx;
+  padding: 13rpx 16rpx;
+  border-radius: 10rpx;
+  background: #eef7f1;
+  color: #356044;
+  font-size: 21rpx;
+  line-height: 1.6;
+}
+
+.claim-deadline {
+  color: #7a857d;
 }
 
 .order-actions {
