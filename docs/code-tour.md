@@ -29,6 +29,7 @@
 2. `backend/service/DlvOrderService.java`
 3. `backend/service/LossClaimService.java`
 4. `backend/controller/ClaimController.java`
+5. `backend/entity/SalOrder.java`
 
 重点观察送达与签收来源、12 小时自动签收、报损资格判断、商户时限配置和补发闭环。
 

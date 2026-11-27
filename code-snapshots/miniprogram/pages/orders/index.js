@@ -79,6 +79,7 @@ Page({
           canClaim: !!o.claimAllowed,
           canCancel: o.status === '0' && (!o.deliveryStatus || o.deliveryStatus === '0'),
           timeText: (o.saleDate || '').replace('T', ' ').substring(0, 16),
+          claimWindowHours: Number(o.claimWindowHours || 14),
           claimDeadlineText: (o.claimDeadline || '').replace('T', ' ').substring(0, 16),
           claimStatusText: o.claimStatusText || ''
         }));
@@ -113,9 +114,11 @@ Page({
 
   confirmSign(e) {
     const id = e.currentTarget.dataset.id;
+    const hours = Number(e.currentTarget.dataset.hours || 14);
     wx.showModal({
       title: '确认签收',
-      content: '确认已经收到全部菜品？签收后状态不可回退。',
+      content: '确认已经收到全部菜品？签收后 ' + hours +
+        ' 小时内可提交损耗报备，逾期不可报损，自动签收订单不支持报损。',
       success: async (res) => {
         if (!res.confirm) return;
         try {

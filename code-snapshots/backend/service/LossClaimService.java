@@ -165,6 +165,7 @@ public class LossClaimService {
         }
         for (SalOrder order : orders) {
             order.setClaimAllowed(false);
+            order.setClaimWindowHours(windowHours);
             order.setClaimDeadline(null);
             order.setClaimStatus(null);
             order.setClaimStatusText(null);

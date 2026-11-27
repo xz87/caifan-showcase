@@ -38,7 +38,8 @@
       <text wx:if="{{item.refundStatus === '1'}}">模拟退款 ¥{{item.refundAmount}}</text>
     </view>
     <view class="o-foot" wx:if="{{item.status === '0' && (item.canSign || item.payStatus !== '2' || item.canCancel || item.canClaim)}}">
-      <button wx:if="{{item.canSign}}" class="sign-btn" data-id="{{item.id}}" bindtap="confirmSign">确认签收</button>
+      <button wx:if="{{item.canSign}}" class="sign-btn" data-id="{{item.id}}"
+              data-hours="{{item.claimWindowHours}}" bindtap="confirmSign">确认签收</button>
       <button wx:elif="{{item.payStatus !== '2'}}" class="sign-btn" data-id="{{item.id}}" data-amount="{{item.payable}}" bindtap="goPay">去支付</button>
       <button wx:if="{{item.canCancel}}" class="cancel-order-btn" data-id="{{item.id}}" bindtap="openCancel">取消订单</button>
       <button wx:if="{{item.canClaim}}" class="claim-btn"

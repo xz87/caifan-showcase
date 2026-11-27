@@ -187,6 +187,7 @@ export default {
             canSign: order.status === '0' && order.deliveryStatus === '3',
             canClaim: !!order.claimAllowed,
             canCancel: order.status === '0' && (!order.deliveryStatus || order.deliveryStatus === '0'),
+            claimWindowHours: Number(order.claimWindowHours || 14),
             claimDeadlineText: order.claimDeadline ? dateTime(order.claimDeadline, true) : '',
             claimStatusText: order.claimStatusText || '',
             timeText: dateTime(order.saleDate, true)
@@ -214,9 +215,11 @@ export default {
       }
     },
     confirmSign(order) {
+      const hours = Number(order.claimWindowHours || 14)
       uni.showModal({
         title: '确认签收',
-        content: '确认已经收到全部菜品？',
+        content: '确认已经收到全部菜品？签收后 ' + hours +
+          ' 小时内可提交损耗报备，逾期不可报损，自动签收订单不支持报损。',
         success: async (result) => {
           if (!result.confirm) return
           try {
